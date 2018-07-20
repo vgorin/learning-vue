@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Krypton Vue: Frontend Coding Test</title>
+
+	<style type="text/css">
+		input, select {
+			width: 150px;
+			box-sizing: border-box;
+		}
+	</style>
+
+	<!-- Vue Library -->
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<h1>Fetch and display streaming market data</h1>
+<!-- Vue View -->
+<div id="krypton-app">
+	<fieldset>
+		<legend>Subscribe</legend>
+		<table>
+			<tr><td>
+				<label for="isin-select">Please select ISIN:</label>
+			</td><td>
+				<select id="isin-select" v-model="selectedInstrument" @change="subscribeHandler">
+					<option></option>
+					<option v-for="option in instruments" v-bind:value="option.value">{{option.text}}</option>
+				</select>
+			</td></tr>
+			<tr><td>
+				<label for="isin-input">Or input it manually:</label>
+			</td><td>
+				<input id="isin-input" type="text" v-model="selectedInstrument" @change="subscribeHandler"/>
+			</td></tr>
+		</table>
+	</fieldset>
+	<fieldset v-if="subscribedInstrument">
+		<legend>Streaming</legend>
+		<table>
+			<!-- TODO: check if this way of binding is the best way to do it (dot notation) -->
+			<tr><td>ISIN:</td><td>{{selectedStock.isin}}</td></tr>
+			<tr><td>Price:</td><td>{{selectedStock.price}}</td></tr>
+			<tr><td>BID:</td><td>{{selectedStock.bid}}</td></tr>
+			<tr><td>ASK:</td><td>{{selectedStock.ask}}</td></tr>
+		</table>
+	</fieldset>
+</div>
+</body>
+
+<!-- Vue Application -->
+<script type="text/javascript">
+
+const krypton_app = new Vue({
+	el: '#krypton-app',
+	data: {
+		subscribedInstrument: null,
+		selectedInstrument: null,
+		instruments: [
+			{text: "DE000BASF111", value: "DE000BASF111"},
+			{text: "DE000VOWG111", value: "DE000VOWG111"},
+		],
+		// TODO: is it possible to make it reactive but initialize with null?
+		selectedStock: {
+			isin: "",
+			price: 0,
+			ask: 0,
+			bid: 0
+		},
+		socketConnected: false
+	},
+	methods: {
+		subscribeHandler: function(e) {
+			// TODO: is it a good way to access the data ($data)?
+			const connected = this.$data.socketConnected;
+			const unsubscribe = this.$data.subscribedInstrument;
+			const subscribe = this.$data.selectedInstrument;
+			if(connected && subscribe) {
+				// TODO: can we send both subscribe and unsubscribe in a single object?
+				if(unsubscribe) {
+					socket.send(JSON.stringify({
+						unsubscribe: unsubscribe
+					}));
+				}
+				socket.send(JSON.stringify({
+					subscribe: subscribe
+				}));
+				this.$data.subscribedInstrument = subscribe;
+			}
+		}
+	}
+});
+
+// TODO: do we need to put this inside the Vue app?
+// TODO: incapsulate the websocket into separate class
+let socket;
+function connect() {
+	socket = new WebSocket("ws://159.89.15.214:8080/");
+	socket.onopen = function(e) {
+		krypton_app.socketConnected = true;
+	};
+	socket.onclose = function(e) {
+		krypton_app.socketConnected = false;
+		connect();
+	};
+	socket.onmessage = function(e) {
+		const data = JSON.parse(e.data);
+		// TODO: do we need to check if data is malformed?
+
+		// TODO: is it the best way to access and modify Vue app data?
+		krypton_app.selectedStock.isin = data.isin || "";
+		krypton_app.selectedStock.price = data.price || 0;
+		krypton_app.selectedStock.ask = data.ask || 0;
+		krypton_app.selectedStock.bid = data.bid || 0;
+	};
+	socket.onerror = function(e) {
+		krypton_app.socketConnected = false;
+		connect();
+	};
+}
+connect();
+</script>
+</html>
